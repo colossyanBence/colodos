@@ -22,7 +22,7 @@ export class Terminal {
     this.fg = '#add8e6';
     this.bg = '#0a0a0a';
     this.cursorColor = '#add8e6';
-    this.fontFamily = '"More Perfect DOS VGA", "Courier New", monospace';
+    this.fontFamily = '"Perfect DOS VGA 437", sans-serif';
     /** Negative letter-spacing to tighten gaps (e.g. '-2px' or '-0.03em') */
     this.letterSpacing = '-0.04em';
     this.paddingX = 16;

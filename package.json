@@ -1,0 +1,8 @@
+{
+  "name": "crtshader-v2",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve . -p 3000",
+    "dev": "npx --yes serve . -p 3000"
+  }
+}

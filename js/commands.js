@@ -1,12 +1,15 @@
 /**
  * Configurable commands for the terminal.
  *
- * Each command is a function that returns:
- *   - { clear: true }        — clear the screen and show only the prompt
- *   - { lines: string[] }     — append these lines, then a new prompt
+ * Each command is a function(args) that returns:
+ *   - { clear: true }          — clear the screen and show only the prompt
+ *   - { lines: string[] }      — append these lines, then a new prompt
+ *   - { setTheme: number }     — switch to theme by index
  *
  * Command names are matched case-insensitively (use lowercase in the config).
  */
+
+import { COLOR_THEMES } from './terminal.js';
 
 export const unknownCommandMessage = 'Bad command or file name';
 
@@ -36,7 +39,27 @@ export const commands = {
 
   // Example: add more commands by returning output lines
   ver: () => ({ lines: ['Colossyan DOS Version 0.1'] }),
-  help: () => ({ lines: ['Commands: cls, exit, ver, help, cat, dir, neo, hal'] }),
+  help: () => ({
+    lines: [
+      'Commands: cls, exit, ver, help, color, cat, dir, neo, hal',
+      '',
+      'Alt+1..9 or "color <n>": switch color theme',
+    ],
+  }),
+  color: (args) => {
+    const n = parseInt(args, 10);
+    if (!isNaN(n) && n >= 1 && n <= COLOR_THEMES.length) {
+      return { setTheme: n - 1 };
+    }
+    const listing = COLOR_THEMES.map((t, i) => `  ${i + 1}. ${t.name}`);
+    return {
+      lines: [
+        'Usage: color <number>',
+        '',
+        ...listing,
+      ],
+    };
+  },
   cat: catFn,
   'cat.exe': catFn,
   dir: () => ({
@@ -65,10 +88,13 @@ export const commands = {
 };
 
 /**
- * Returns the handler for a given command name, or null if not defined.
- * @param {string} name - Trimmed, lowercase command name
- * @returns {((() => { clear?: boolean; lines?: string[] }) | null)}
+ * Parses input into command + args and returns { handler, args } or null.
+ * @param {string} input - Trimmed, lowercase full input
  */
-export function getCommand(name) {
-  return commands[name] ?? null;
+export function getCommand(input) {
+  const spaceIdx = input.indexOf(' ');
+  const name = spaceIdx === -1 ? input : input.slice(0, spaceIdx);
+  const args = spaceIdx === -1 ? '' : input.slice(spaceIdx + 1).trim();
+  const handler = commands[name] ?? null;
+  return handler ? { handler, args } : null;
 }

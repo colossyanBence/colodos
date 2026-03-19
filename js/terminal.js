@@ -1,5 +1,17 @@
 import { getCommand, unknownCommandMessage } from './commands.js';
 
+export const COLOR_THEMES = [
+  { name: 'Light Blue',  fg: '#add8e6', bg: '#0a0a0a', glow: '0, 160, 220' },
+  { name: 'Green',       fg: '#33ff33', bg: '#0a0a0a', glow: '0, 255, 50' },
+  { name: 'Amber',       fg: '#ffb000', bg: '#0a0a0a', glow: '255, 176, 0' },
+  { name: 'White',       fg: '#e0e0e0', bg: '#0a0a0a', glow: '200, 200, 200' },
+  { name: 'Red',         fg: '#ff4444', bg: '#0a0a0a', glow: '255, 60, 60' },
+  { name: 'Magenta',     fg: '#ff66ff', bg: '#0a0a0a', glow: '255, 100, 255' },
+  { name: 'Cyan',        fg: '#00e5ff', bg: '#0a0a0a', glow: '0, 229, 255' },
+  { name: 'Yellow',      fg: '#ffff55', bg: '#0a0a0a', glow: '255, 255, 80' },
+  { name: 'Matrix',      fg: '#00ff41', bg: '#020d00', glow: '0, 255, 65' },
+];
+
 /**
  * Editable MS-DOS style terminal.
  * Renders to an offscreen 2D canvas; this canvas can be used as a WebGL texture
@@ -12,7 +24,7 @@ export class Terminal {
     this.prompt = 'C:\\>';
     /** @type {string[]} */
     this.lines = [this.prompt];
-    this.cursorIndex = this.prompt.length; // position within current line (after prompt)
+    this.cursorIndex = this.prompt.length;
     this.cursorBlink = 0;
 
     /** @type {string[]} */
@@ -23,11 +35,14 @@ export class Terminal {
     this.ctx = this.canvas.getContext('2d');
     if (!this.ctx) throw new Error('2D context not available');
 
-    this.fg = '#add8e6';
-    this.bg = '#0a0a0a';
-    this.cursorColor = '#add8e6';
+    const saved = parseInt(localStorage.getItem('crt_theme'), 10);
+    const initial = (saved >= 0 && saved < COLOR_THEMES.length) ? saved : 0;
+    this.themeIndex = initial;
+    this.onThemeChange = null;
+    this.fg = COLOR_THEMES[initial].fg;
+    this.bg = COLOR_THEMES[initial].bg;
+    this.cursorColor = COLOR_THEMES[initial].fg;
     this.fontFamily = '"Perfect DOS VGA 437", sans-serif';
-    /** Negative letter-spacing to tighten gaps (e.g. '-2px' or '-0.03em') */
     this.letterSpacing = '-0.04em';
     this.paddingX = 16;
     this.paddingY = 16;
@@ -60,8 +75,25 @@ export class Terminal {
     this.lines[this.lines.length - 1] = this.prompt + s;
   }
 
+  setTheme(index) {
+    if (index < 0 || index >= COLOR_THEMES.length) return;
+    this.themeIndex = index;
+    const theme = COLOR_THEMES[index];
+    this.fg = theme.fg;
+    this.bg = theme.bg;
+    this.cursorColor = theme.fg;
+    localStorage.setItem('crt_theme', index);
+    if (this.onThemeChange) this.onThemeChange(theme);
+  }
+
   /** Handle key down. Returns true if handled. */
   keydown(e) {
+    if (e.altKey && e.code >= 'Digit1' && e.code <= 'Digit9') {
+      e.preventDefault();
+      this.setTheme(parseInt(e.code[5], 10) - 1);
+      return true;
+    }
+
     const line = this.currentLineContent;
     const pos = this.cursorIndex - this.prompt.length;
 
@@ -92,10 +124,15 @@ export class Terminal {
         this.cursorIndex = this.prompt.length;
         while (this.lines.length > this.rows) this.lines.shift();
       } else {
-        const handler = getCommand(cmd);
-        if (handler) {
-          const result = handler();
-          if (result.clear) {
+        const match = getCommand(cmd);
+        if (match) {
+          const result = match.handler(match.args);
+          if (result.setTheme !== undefined) {
+            this.setTheme(result.setTheme);
+            this.lines.push(this.prompt);
+            this.cursorIndex = this.prompt.length;
+            while (this.lines.length > this.rows) this.lines.shift();
+          } else if (result.clear) {
             this.lines = [this.prompt];
             this.cursorIndex = this.prompt.length;
           } else if (result.lines && result.lines.length > 0) {

@@ -1,4 +1,4 @@
-import { Terminal } from './terminal.js';
+import { Terminal, COLOR_THEMES } from './terminal.js';
 import { GLRenderer } from './gl-renderer.js';
 
 async function loadShader(url) {
@@ -18,6 +18,13 @@ async function main() {
 
   const terminal = new Terminal(80, 25);
   const renderer = new GLRenderer(glCanvas, vertSource, fragSource);
+
+  const applyGlow = (theme) => {
+    glCanvas.style.boxShadow =
+      `inset 0 0 0 2px #2a2a22, inset 0 2px 8px rgba(0,0,0,0.6), 0 0 20px rgba(${theme.glow}, 0.08)`;
+  };
+  terminal.onThemeChange = applyGlow;
+  applyGlow(COLOR_THEMES[terminal.themeIndex]);
 
   function resize() {
     // Fill viewport up to max — 80×25 gets large DOS-style character cells

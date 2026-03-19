@@ -24,7 +24,7 @@ export const commands = {
   ver: () => ({ lines: ['Retro Terminal UI V.0.1'] }),
   help: () => ({
     lines: [
-      'Commands: cls, exit, ver, help, color, cat, dir, neo, hal',
+      'Commands: cls, exit, ver, help, color, dir, neo, hal',
       '',
       'Cmd+1..9 or "color <n>": switch color theme',
       '',

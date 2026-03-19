@@ -91,6 +91,24 @@ export class Terminal {
     if (this.onThemeChange) this.onThemeChange(theme);
   }
 
+  /** Break a string into lines of at most `this.cols` characters. */
+  _wrapText(text) {
+    if (text.length <= this.cols) return [text];
+    const wrapped = [];
+    for (let i = 0; i < text.length; i += this.cols) {
+      wrapped.push(text.slice(i, i + this.cols));
+    }
+    return wrapped;
+  }
+
+  _pushLines(lines) {
+    for (const line of lines) {
+      for (const chunk of this._wrapText(line)) {
+        this.lines.push(chunk);
+      }
+    }
+  }
+
   connectWebSocket() {
     return new Promise((resolve, reject) => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -105,13 +123,13 @@ export class Terminal {
         const msg = JSON.parse(event.data);
         if (msg.type === 'stdout') {
           const lines = msg.data.split('\n').filter(l => l !== '');
-          for (const l of lines) this.lines.push(l);
+          this._pushLines(lines);
           while (this.lines.length > this.rows) this.lines.shift();
         } else if (msg.type === 'stderr') {
           this._remoteHadError = true;
         } else if (msg.type === 'close') {
           if (msg.code !== 0 && this._remoteHadError) {
-            this.lines.push(unknownCommandMessage);
+            this._pushLines([unknownCommandMessage]);
           }
           this._remoteHadError = false;
           this.lines.push('');
@@ -130,8 +148,7 @@ export class Terminal {
       const data = await resp.json();
       if (data.status !== 'ok') throw new Error('Server status: ' + data.status);
     } catch (err) {
-      this.lines.push('Your terminal proxy server is probably not running.');
-      this.lines.push('');
+      this._pushLines(['Your terminal proxy server is probably not running.', '']);
       this.lines.push(this.prompt);
       this.cursorIndex = this.prompt.length;
       while (this.lines.length > this.rows) this.lines.shift();
@@ -148,8 +165,7 @@ export class Terminal {
         body: JSON.stringify({ command: input }),
       });
     } catch (err) {
-      this.lines.push('Error: ' + err.message);
-      this.lines.push('');
+      this._pushLines(['Error: ' + err.message, '']);
       this.lines.push(this.prompt);
       this.cursorIndex = this.prompt.length;
       while (this.lines.length > this.rows) this.lines.shift();
@@ -206,7 +222,7 @@ export class Terminal {
             this.lines = [this.prompt];
             this.cursorIndex = this.prompt.length;
           } else if (result.lines && result.lines.length > 0) {
-            for (const outputLine of result.lines) this.lines.push(outputLine);
+            this._pushLines(result.lines);
             this.lines.push(this.prompt);
             this.cursorIndex = this.prompt.length;
             while (this.lines.length > this.rows) this.lines.shift();
@@ -290,23 +306,34 @@ export class Terminal {
     ctx.textBaseline = 'top';
     if (ctx.letterSpacing !== undefined) ctx.letterSpacing = this.letterSpacing;
 
-    const startRow = Math.max(0, this.lines.length - rows);
-    for (let r = 0; r < rows; r++) {
-      const lineIndex = startRow + r;
-      const line = (this.lines[lineIndex] ?? '').padEnd(cols).slice(0, cols);
-      const y = contentTop + r * cellHeight;
-      ctx.fillText(line, contentLeft, y);
+    const displayRows = [];
+    for (const line of this.lines) {
+      for (const chunk of this._wrapText(line)) displayRows.push(chunk);
     }
 
-    // Cursor (blink) — underscore at exact position of next character
+    const lastLine = this.lines[this.lines.length - 1] ?? '';
+    const wrappedLastCount = this._wrapText(lastLine).length;
+    const lastLineStartRow = displayRows.length - wrappedLastCount;
+    const cursorWrapRow = Math.floor(this.cursorIndex / cols);
+    const totalDisplayRows = Math.max(displayRows.length, lastLineStartRow + cursorWrapRow + 1);
+
+    const startRow = Math.max(0, totalDisplayRows - rows);
+    for (let r = 0; r < rows; r++) {
+      const rowIndex = startRow + r;
+      const text = (displayRows[rowIndex] ?? '').padEnd(cols).slice(0, cols);
+      const y = contentTop + r * cellHeight;
+      ctx.fillText(text, contentLeft, y);
+    }
+
     this.cursorBlink = (time / 500) % 1;
     if (this.cursorBlink < 0.5) {
-      const cursorRow = this.lines.length - 1 - startRow;
-      if (cursorRow >= 0 && cursorRow < rows) {
-        const currentLine = (this.lines[this.lines.length - 1] ?? '').padEnd(cols).slice(0, cols);
-        const textBeforeCursor = currentLine.slice(0, this.cursorIndex);
+      const cursorWrapCol = this.cursorIndex % cols;
+      const cursorScreenRow = lastLineStartRow + cursorWrapRow - startRow;
+      if (cursorScreenRow >= 0 && cursorScreenRow < rows) {
+        const rowText = displayRows[lastLineStartRow + cursorWrapRow] ?? '';
+        const textBeforeCursor = rowText.slice(0, cursorWrapCol);
         const cx = contentLeft + ctx.measureText(textBeforeCursor).width;
-        const cy = contentTop + cursorRow * cellHeight;
+        const cy = contentTop + cursorScreenRow * cellHeight;
         ctx.fillStyle = this.cursorColor;
         ctx.fillText('_', cx, cy);
       }

@@ -19,7 +19,7 @@ const wss = new WebSocket.Server({ noServer: true });
 let clients = [];
 
 // Upgrade HTTP to WebSocket
-const server = app.listen(8008, () => console.log('Server running on port 8008'));
+const server = app.listen(8008, () => console.log('Terminal proxy server running on port 8008'));
 
 server.on('upgrade', (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (ws) => {

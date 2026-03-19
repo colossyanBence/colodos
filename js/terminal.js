@@ -1,5 +1,8 @@
 import { getCommand, unknownCommandMessage } from './commands.js';
 
+const SERVER_URL = 'http://localhost:8008';
+const WS_URL = 'ws://localhost:8008';
+
 export const COLOR_THEMES = [
   { name: 'Light Blue',  fg: '#add8e6', bg: '#0a0a0a', glow: '0, 160, 220' },
   { name: 'Green',       fg: '#33ff33', bg: '#0a0a0a', glow: '0, 255, 50' },
@@ -47,6 +50,8 @@ export class Terminal {
     this.paddingX = 16;
     this.paddingY = 16;
 
+    this.ws = null;
+
     this.resize(800, 500);
   }
 
@@ -86,9 +91,78 @@ export class Terminal {
     if (this.onThemeChange) this.onThemeChange(theme);
   }
 
+  connectWebSocket() {
+    return new Promise((resolve, reject) => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        resolve();
+        return;
+      }
+      this.ws = new WebSocket(WS_URL);
+      this.ws.onopen = () => resolve();
+      this.ws.onerror = () => reject(new Error('WebSocket connection failed'));
+      this.ws.onclose = () => { this.ws = null; };
+      this.ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'stdout') {
+          const lines = msg.data.split('\n').filter(l => l !== '');
+          for (const l of lines) this.lines.push(l);
+          while (this.lines.length > this.rows) this.lines.shift();
+        } else if (msg.type === 'stderr') {
+          this._remoteHadError = true;
+        } else if (msg.type === 'close') {
+          if (msg.code !== 0 && this._remoteHadError) {
+            this.lines.push(unknownCommandMessage);
+          }
+          this._remoteHadError = false;
+          this.lines.push('');
+          this.lines.push(this.prompt);
+          this.cursorIndex = this.prompt.length;
+          while (this.lines.length > this.rows) this.lines.shift();
+        }
+      };
+    });
+  }
+
+  async executeRemote(input) {
+    try {
+      const resp = await fetch(`${SERVER_URL}/heartbeat`);
+      if (!resp.ok) throw new Error('Server returned ' + resp.status);
+      const data = await resp.json();
+      if (data.status !== 'ok') throw new Error('Server status: ' + data.status);
+    } catch (err) {
+      this.lines.push('Your terminal proxy server is probably not running.');
+      this.lines.push('');
+      this.lines.push(this.prompt);
+      this.cursorIndex = this.prompt.length;
+      while (this.lines.length > this.rows) this.lines.shift();
+      return;
+    }
+
+    try {
+      await this.connectWebSocket();
+
+      const parts = input.split(/\s+/);
+      const command = parts[0];
+      const args = parts.slice(1);
+
+      this._remoteHadError = false;
+      await fetch(`${SERVER_URL}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command, args }),
+      });
+    } catch (err) {
+      this.lines.push('Error: ' + err.message);
+      this.lines.push('');
+      this.lines.push(this.prompt);
+      this.cursorIndex = this.prompt.length;
+      while (this.lines.length > this.rows) this.lines.shift();
+    }
+  }
+
   /** Handle key down. Returns true if handled. */
   keydown(e) {
-    if (e.altKey && e.code >= 'Digit1' && e.code <= 'Digit9') {
+    if (e.metaKey && e.code >= 'Digit1' && e.code <= 'Digit9') {
       e.preventDefault();
       this.setTheme(parseInt(e.code[5], 10) - 1);
       return true;
@@ -146,11 +220,7 @@ export class Terminal {
             while (this.lines.length > this.rows) this.lines.shift();
           }
         } else {
-          this.lines.push(unknownCommandMessage);
-          this.lines.push('');
-          this.lines.push(this.prompt);
-          this.cursorIndex = this.prompt.length;
-          while (this.lines.length > this.rows) this.lines.shift();
+          this.executeRemote(line.trim());
         }
       }
       return true;
@@ -202,7 +272,7 @@ export class Terminal {
       this.cursorIndex = this.prompt.length + line.length;
       return true;
     }
-    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       const before = line.slice(0, pos);
       const after = line.slice(pos);

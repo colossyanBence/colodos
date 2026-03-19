@@ -11,22 +11,7 @@
 
 import { COLOR_THEMES } from './terminal.js';
 
-export const unknownCommandMessage = 'Bad command or file name';
-
-const catFn = () => ({
-  lines: [
-    '  ,_     _',
-    '  |\\_,-~/',
-    '  / _  _ |    ,--.',
-    ' (  @  @ )   / ,-\'',
-    '  \\  _T_/-._( (',
-    '  /         `. \\',
-    ' |         _  \\ |',
-    '  \\ \\ ,  /      |',
-    '  || |-_\\__   /',
-    '  ((_/`(____,-\'',
-  ],
-});
+export const unknownCommandMessage = 'Bad command or file name.';
 
 export const commands = {
   cls: () => ({ clear: true }),
@@ -36,14 +21,14 @@ export const commands = {
       '  Nice try. You\'re not going anywhere.'
     ],
   }),
-
-  // Example: add more commands by returning output lines
-  ver: () => ({ lines: ['Colossyan DOS Version 0.1'] }),
+  ver: () => ({ lines: ['Retro Terminal UI V.0.1'] }),
   help: () => ({
     lines: [
       'Commands: cls, exit, ver, help, color, cat, dir, neo, hal',
       '',
-      'Alt+1..9 or "color <n>": switch color theme',
+      'Cmd+1..9 or "color <n>": switch color theme',
+      '',
+      'If your terminal proxy server is running, every other command will be relayed to it.'
     ],
   }),
   color: (args) => {
@@ -60,17 +45,6 @@ export const commands = {
       ],
     };
   },
-  cat: catFn,
-  'cat.exe': catFn,
-  dir: () => ({
-    lines: [
-      '  Directory of C:\\',
-      '  .',
-      '  ..',
-      '  cat.exe',
-    ],
-  }),
-
   // Pop culture easter eggs
   neo: () => ({
     lines: [

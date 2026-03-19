@@ -5,6 +5,14 @@ const WebSocket = require('ws');
 
 const app = express();
 app.use(express.json());
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 
 // Store WebSocket clients
 const wss = new WebSocket.Server({ noServer: true });
@@ -37,8 +45,17 @@ app.post('/run', (req, res) => {
 
   if (!command) return res.status(400).send({ error: 'No command provided' });
 
-  // Spawn process
-  const proc = spawn(command, args || []);
+  let proc;
+  try {
+    proc = spawn(command, args || []);
+  } catch (err) {
+    return res.status(500).send({ error: err.message });
+  }
+
+  proc.on('error', (err) => {
+    clients.forEach(ws => ws.send(JSON.stringify({ type: 'stderr', data: err.message })));
+    clients.forEach(ws => ws.send(JSON.stringify({ type: 'close', code: 1 })));
+  });
 
   proc.stdout.on('data', (data) => {
     clients.forEach(ws => ws.send(JSON.stringify({ type: 'stdout', data: data.toString() })));

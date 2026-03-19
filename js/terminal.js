@@ -141,15 +141,11 @@ export class Terminal {
     try {
       await this.connectWebSocket();
 
-      const parts = input.split(/\s+/);
-      const command = parts[0];
-      const args = parts.slice(1);
-
       this._remoteHadError = false;
       await fetch(`${SERVER_URL}/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command, args }),
+        body: JSON.stringify({ command: input }),
       });
     } catch (err) {
       this.lines.push('Error: ' + err.message);

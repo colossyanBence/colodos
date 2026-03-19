@@ -41,13 +41,13 @@ app.get('/heartbeat', (req, res) => {
 
 // API endpoint to execute command
 app.post('/run', (req, res) => {
-  const { command, args } = req.body;
+  const { command } = req.body;
 
   if (!command) return res.status(400).send({ error: 'No command provided' });
 
   let proc;
   try {
-    proc = spawn(command, args || []);
+    proc = spawn(command, [], { shell: true });
   } catch (err) {
     return res.status(500).send({ error: err.message });
   }

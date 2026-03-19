@@ -15,6 +15,10 @@ export class Terminal {
     this.cursorIndex = this.prompt.length; // position within current line (after prompt)
     this.cursorBlink = 0;
 
+    /** @type {string[]} */
+    this.history = [];
+    this.historyIndex = -1;
+
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d');
     if (!this.ctx) throw new Error('2D context not available');
@@ -79,6 +83,10 @@ export class Terminal {
     if (e.key === 'Enter') {
       e.preventDefault();
       const cmd = line.trim().toLowerCase();
+      if (cmd !== '') {
+        this.history.push(line);
+        this.historyIndex = -1;
+      }
       if (cmd === '') {
         this.lines.push(this.prompt);
         this.cursorIndex = this.prompt.length;
@@ -106,6 +114,33 @@ export class Terminal {
           this.lines.push(this.prompt);
           this.cursorIndex = this.prompt.length;
           while (this.lines.length > this.rows) this.lines.shift();
+        }
+      }
+      return true;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (this.history.length > 0) {
+        if (this.historyIndex === -1) this.historyIndex = this.history.length;
+        if (this.historyIndex > 0) {
+          this.historyIndex--;
+          this.currentLineContent = this.history[this.historyIndex];
+          this.cursorIndex = this.prompt.length + this.currentLineContent.length;
+        }
+      }
+      return true;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (this.historyIndex !== -1) {
+        this.historyIndex++;
+        if (this.historyIndex >= this.history.length) {
+          this.historyIndex = -1;
+          this.currentLineContent = '';
+          this.cursorIndex = this.prompt.length;
+        } else {
+          this.currentLineContent = this.history[this.historyIndex];
+          this.cursorIndex = this.prompt.length + this.currentLineContent.length;
         }
       }
       return true;
